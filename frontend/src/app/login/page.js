@@ -1,7 +1,7 @@
 "use client";
 
+import { signIn } from "../../../lib/auth";
 import { FaGoogle } from "react-icons/fa";
-import { signIn } from "next-auth/react";
 import NavButton from "../components/navbutton";
 import PageWrapper from "../components/pagewrapper";
 
@@ -12,7 +12,7 @@ export default function Page(){
             <div className="animate-in slide_in duration-600">
                 <button
                     className="py-6 px-13 rounded-2xl m-10 bg-amber-300 text-3xl text-black inline-block shadow-lg shadow-amber-200 hover:scale-102 duration-200 active:scale-95 font-semibold"
-                    onClick={() => signIn("google", {callbackUrl: "/discover"})}
+                    onClick={() => signIn()}
                 > Continue with Google <FaGoogle className="inline-block mb-1 ml-4"/>  </button>
             </div>
         </div>

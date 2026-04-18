@@ -3,8 +3,8 @@ import Link from "next/link";
 import { FaRegUser } from "react-icons/fa"
 import { IoSettingsOutline } from "react-icons/io5"
 import { CiLogout } from "react-icons/ci"
-import { signOut } from "next-auth/react"
 import { FaReact } from "react-icons/fa"
+import { supabase } from "../../../lib/supabase";
 
 export default function Sidebar() {
     const links = [
@@ -31,8 +31,11 @@ export default function Sidebar() {
         },
     ];
 
-    const handleSignOut = () => {
-        signOut()
+    async function handleSignOut(){
+        const {error} = await supabase.auth.signOut()
+        if (!error){
+            window.location.href = "/login"
+        }
     }
 
     const SidebarButton = ({link}) => {
