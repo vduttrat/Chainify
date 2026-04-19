@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { DashboardCard, EmptyState } from "../dashboard/DashboardUI"
-import { FiLayers, FiArrowRight, FiCheckCircle, FiUploadCloud } from "react-icons/fi"
+import { FiLayers, FiArrowRight, FiCheckCircle, FiUploadCloud, FiClock } from "react-icons/fi"
 
 const targetStageMap = {
   farmer: 0,
@@ -15,7 +15,8 @@ export default function EmployeeView({
     selectedProduct, 
     setSelectedProduct, 
     productHistory,
-    onVerifyProduct 
+    onVerifyProduct,
+    STAGES 
 }) {
     const [description, setDescription] = useState("")
 
@@ -74,6 +75,34 @@ export default function EmployeeView({
                             <div className="bg-white/5 p-6 rounded-3xl border border-white/5">
                                 <h3 className="font-black text-xl text-white mb-2">{selectedProduct.name}</h3>
                                 <p className="text-slate-400 font-mono text-sm">Product ID: {selectedProduct.id}</p>
+                            </div>
+
+                            <div className="bg-white/5 p-6 rounded-3xl border border-white/5">
+                                <h3 className="text-[10px] uppercase font-black text-slate-500 tracking-widest mb-4">On-Chain Audit Trail</h3>
+                                <div className="space-y-6 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-white/5">
+                                    {productHistory && productHistory.length > 0 ? productHistory.map((h, idx) => (
+                                        <div key={idx} className="relative pl-10">
+                                            <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-[#0a0a0a] border-2 border-emerald-500 flex items-center justify-center">
+                                                <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="font-black text-lg text-white">{STAGES && STAGES[h.currentStage] ? STAGES[h.currentStage] : "UNKNOWN"}</span>
+                                                    {h.verified && <FiCheckCircle className="text-emerald-400" />}
+                                                </div>
+                                                <p className="text-slate-500 text-xs mt-1">Timestamp: {new Date(Number(h.timestamp) * 1000).toLocaleString()}</p>
+                                                <div className="mt-3 p-3 bg-white/5 rounded-xl border border-white/5 font-mono text-[10px] text-slate-400 break-all">
+                                                    CID: {h.cid}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )) : (
+                                        <div className="flex flex-col items-center justify-center py-6 opacity-50">
+                                            <FiClock className="text-4xl mb-4" />
+                                            <p className="text-sm font-bold">Awaiting first stage verification...</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             {canVerify ? (

@@ -220,7 +220,7 @@ export default function DiscoverPage() {
                 address: ROLES_ADDRESS,
                 abi: ROLES_ABI,
                 functionName: "addEmployeeCommitment",
-                args: [commitment, employeeForm.wallet, employeeForm.role]
+                args: [commitment, employeeForm.wallet.trim(), employeeForm.role]
             })
 
             setAddEmployeeHash(hash)
@@ -236,7 +236,7 @@ export default function DiscoverPage() {
         e.preventDefault()
         if (!isConnected || isWrongNetwork) return showStatus("error", "Please connect to Sepolia first.")
         try {
-            const employee = employees.find(emp => emp.wallet.toLowerCase() === removeWallet.toLowerCase())
+            const employee = employees.find(emp => emp.wallet.toLowerCase() === removeWallet.trim().toLowerCase())
             if (!employee) return showStatus("error", "Employee not found in registry.")
 
             const hash = await writeContractAsync({
@@ -465,6 +465,7 @@ export default function DiscoverPage() {
             setSelectedProduct={setSelectedProduct}
             productHistory={productHistory}
             onVerifyProduct={handleVerifyProduct}
+            STAGES={STAGES}
         />
     } else {
         viewContent = (
@@ -517,7 +518,7 @@ export default function DiscoverPage() {
                     {viewContent}
                 </div>
 
-                {selectedProduct && (
+                {selectedProduct && (role === "company" || role === "consumer") && (
                     <div className="fixed inset-0 z-50 flex items-center justify-end p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setSelectedProduct(null)}>
                         <div className="w-full max-w-2xl h-full bg-[#0a0a0a] rounded-[3rem] border border-white/10 shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-500" onClick={e => e.stopPropagation()}>
                             <div className="p-12 space-y-12">
