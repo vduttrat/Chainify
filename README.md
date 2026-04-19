@@ -9,6 +9,7 @@ Chainify leverages **ZK-Snarks (Plonk Verifiers)** to authorize supply chain act
 
 ### Enterprise AI Scaling (GenAI)
 The core AI Anomaly Detection engine is deployed on **Azure Web Services**, providing high-availability and low-latency inference. This ensures that every supply chain update is scanned against global compliance standards in real-time.
+(Note -> Inform @IronKommander to test the Azure deployed GenAI server on https://chainify-anomaly-detection.azurewebsites.net/docs)
 
 ### Probabilistic Compliance (AI)
 Utilizing a **LangGraph-based agentic workflow**, the system doesn't just flag anomalies; it provides detailed **compliance reasoning** and fraud probability scores (0-100%), helping inspectors make data-driven decisions.
