@@ -8,7 +8,8 @@ import os, glob, re
 
 COLLECTION_NAME = "food"
 SIZE = 768 #for BAAI/bge-base-en-v1.5
-FILES_PATH = "../docs/food/*.pdf"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+FILES_PATH = os.path.join(SCRIPT_DIR, "..", "docs", "food", "*.pdf")
 
 headers_to_split_on = [
     ("#", "Chapter"),
