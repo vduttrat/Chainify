@@ -14,5 +14,7 @@ class EvaluationResult(BaseModel):
 class GraphState(BaseModel):
     request: AnalyzeRequest
     legal_search_query: str = ""
+    web_search_query: str = ""
+    web_results: str = ""
     retrieved_regulations: List[str] = []
     evaluation: Optional[EvaluationResult] = None
