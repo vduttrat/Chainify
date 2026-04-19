@@ -101,8 +101,17 @@ def pdf_retrieval(state : state.GraphState) -> Dict:
 def web_retrieval(state: state.GraphState) -> Dict:
     """Executes the SerpAPI search and formats the top snippets."""
     print(f"--- Searching web for: {state.web_search_query} --- ")
-    raw_results = search.run(state.web_search_query)
-    formatted_results = f"WEB SEARCH RESULTS:\n{raw_results}"
+    try:
+        raw_results = search.run(state.web_search_query)
+        formatted_results = f"WEB SEARCH RESULTS:\n{raw_results}"
+    except ValueError as e:
+        # Catches the exact SerpAPI "no results" error
+        print(f"--- Web Search Warning: {e} ---")
+        formatted_results = "WEB SEARCH RESULTS:\nNo relevant precedents found on the web."
+    except Exception as e:
+        # Catches network timeouts or API key issues
+        print(f"--- Web Search Failed: {e} ---")
+        formatted_results = "WEB SEARCH RESULTS:\nWeb search failed to execute."
     return {"web_results" : formatted_results}
 
 def eval(graph_state: state.GraphState) -> Dict:

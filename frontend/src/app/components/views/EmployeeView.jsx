@@ -1,6 +1,8 @@
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { DashboardCard, EmptyState } from "../dashboard/DashboardUI"
 import { FiLayers, FiArrowRight, FiCheckCircle, FiUploadCloud, FiClock, FiXCircle } from "react-icons/fi"
+import AnomalyInsight from "../AnomalyInsight"
+import { fetchAnomalyAnalysis } from "../../services/anomalyService"
 
 const targetStageMap = {
   farmer: 0,
@@ -20,6 +22,14 @@ export default function EmployeeView({
 }) {
     const [description, setDescription] = useState("")
 
+    // ── AI Anomaly Analysis state ────────────────────────
+    const [anomalyResult, setAnomalyResult] = useState(null)
+    const [anomalyLoading, setAnomalyLoading] = useState(false)
+
+    // Map of CID → anomaly analysis for audit trail items
+    const [historyAnalyses, setHistoryAnalyses] = useState({})
+    const [historyLoading, setHistoryLoading] = useState({})
+
     const targetStage = targetStageMap[role]
     const latestStage = productHistory && productHistory.length > 0 
         ? productHistory[productHistory.length - 1].currentStage 
@@ -31,10 +41,80 @@ export default function EmployeeView({
 
     const canVerify = latestStage === targetStage && isPreviousStageApproved
 
+    /**
+     * Trigger AI analysis when the employee finishes typing a description.
+     * Uses a 1-second debounce to avoid spamming the API on every keystroke.
+     */
+    useEffect(() => {
+        if (!description.trim() || description.trim().length < 10) {
+            setAnomalyResult(null)
+            return
+        }
+
+        const timer = setTimeout(async () => {
+            setAnomalyLoading(true)
+            try {
+                const result = await fetchAnomalyAnalysis(description)
+                setAnomalyResult(result)
+            } catch {
+                setAnomalyResult({ status: "error", error: "Unexpected error" })
+            } finally {
+                setAnomalyLoading(false)
+            }
+        }, 1000) // 1s debounce
+
+        return () => clearTimeout(timer)
+    }, [description])
+
+    /**
+     * Fetch anomaly analysis for each audit-trail CID when product history loads.
+     * We use the CID text as the "description" since the real log content is on IPFS.
+     * This runs asynchronously and does not block the UI.
+     */
+    const fetchHistoryAnalysis = useCallback(async (cid, idx) => {
+        if (!cid || historyAnalyses[cid]) return // already cached or empty
+
+        setHistoryLoading(prev => ({ ...prev, [cid]: true }))
+        try {
+            // Fetch the pinata content to get the real description
+            const pinataUrl = `https://gateway.pinata.cloud/ipfs/${cid}`
+            let descriptionText = cid // fallback to CID itself
+
+            try {
+                const pinataRes = await fetch(pinataUrl)
+                if (pinataRes.ok) {
+                    const pinataJson = await pinataRes.json()
+                    descriptionText = pinataJson.description || pinataJson.pinataContent?.description || cid
+                }
+            } catch {
+                // If IPFS fetch fails, use cid as description — analysis will still run
+            }
+
+            const result = await fetchAnomalyAnalysis(descriptionText)
+            setHistoryAnalyses(prev => ({ ...prev, [cid]: result }))
+        } catch {
+            setHistoryAnalyses(prev => ({ ...prev, [cid]: { status: "error", error: "Failed" } }))
+        } finally {
+            setHistoryLoading(prev => ({ ...prev, [cid]: false }))
+        }
+    }, [historyAnalyses])
+
+    // Auto-fetch analysis for each history item when productHistory updates
+    useEffect(() => {
+        if (productHistory && productHistory.length > 0) {
+            productHistory.forEach((h, idx) => {
+                if (h.cid && !historyAnalyses[h.cid]) {
+                    fetchHistoryAnalysis(h.cid, idx)
+                }
+            })
+        }
+    }, [productHistory, fetchHistoryAnalysis, historyAnalyses])
+
     const handleVerify = async (isVerified) => {
         if (!description.trim()) return;
         await onVerifyProduct(selectedProduct.id, description, isVerified)
         setDescription("")
+        setAnomalyResult(null) // Reset analysis after submission
     }
 
     return (
@@ -98,6 +178,13 @@ export default function EmployeeView({
                                                 <div className="mt-3 p-3 bg-white/5 rounded-xl border border-white/5 font-mono text-[10px] text-slate-400 break-all">
                                                     CID: {h.cid}
                                                 </div>
+
+                                                {/* ── AI Anomaly Insight for each history entry ─── */}
+                                                <AnomalyInsight
+                                                    analysis={historyAnalyses[h.cid] || null}
+                                                    loading={historyLoading[h.cid] || false}
+                                                    compact={true}
+                                                />
                                             </div>
                                         </div>
                                     )) : (
@@ -121,6 +208,13 @@ export default function EmployeeView({
                                             className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 min-h-[150px] focus:outline-none focus:border-emerald-500/50 transition-all"
                                         />
                                     </div>
+
+                                    {/* ── AI Anomaly Analysis for the description being typed ── */}
+                                    <AnomalyInsight
+                                        analysis={anomalyResult}
+                                        loading={anomalyLoading}
+                                    />
+
                                     <div className="grid grid-cols-2 gap-4">
                                         <button 
                                             onClick={() => handleVerify(true)} 

@@ -17,6 +17,10 @@ import CompanyView from "../components/views/CompanyView"
 import ConsumerView from "../components/views/ConsumerView"
 import EmployeeView from "../components/views/EmployeeView"
 
+// ── AI Anomaly Detection ─────────────────────────────
+import AnomalyInsight from "../components/AnomalyInsight"
+import { fetchAnomalyAnalysis } from "../services/anomalyService"
+
 export default function DiscoverPage() {
     const [loading, setLoading] = useState(true)
     const [role, setRole] = useState(null)
@@ -30,6 +34,10 @@ export default function DiscoverPage() {
     const [optimisticallyRemovedWallets, setOptimisticallyRemovedWallets] = useState([])
     const [productForm, setProductForm] = useState({ name: "", location: "", quantity: "", cid: "" })
     const [status, setStatus] = useState({ type: "", message: "" })
+
+    // ── AI Anomaly state for inspector panel audit trail ──
+    const [inspectorAnalyses, setInspectorAnalyses] = useState({})
+    const [inspectorLoading, setInspectorLoading] = useState({})
 
     const { address: userAddress, isConnected, chain } = useAccount()
     const { connect } = useConnect()
@@ -346,6 +354,41 @@ export default function DiscoverPage() {
 
     const STAGES = ["CREATED", "FARMER", "MANUFACTURER", "DISTRIBUTOR", "RETAILER"]
 
+    /**
+     * Auto-fetch anomaly analysis for each history entry in the inspector panel.
+     * Runs when productHistory changes, fetches asynchronously per CID.
+     */
+    useEffect(() => {
+        if (!productHistory || productHistory.length === 0) return
+        productHistory.forEach((h) => {
+            const cid = h.cid
+            if (!cid || inspectorAnalyses[cid]) return
+
+            setInspectorLoading(prev => ({ ...prev, [cid]: true }))
+
+            // Try to fetch the actual description from IPFS, fallback to CID
+            ;(async () => {
+                let descriptionText = cid
+                try {
+                    const pinataRes = await fetch(`https://gateway.pinata.cloud/ipfs/${cid}`)
+                    if (pinataRes.ok) {
+                        const pinataJson = await pinataRes.json()
+                        descriptionText = pinataJson.description || pinataJson.pinataContent?.description || cid
+                    }
+                } catch { /* IPFS fetch failed, use CID as description */ }
+
+                try {
+                    const result = await fetchAnomalyAnalysis(descriptionText)
+                    setInspectorAnalyses(prev => ({ ...prev, [cid]: result }))
+                } catch {
+                    setInspectorAnalyses(prev => ({ ...prev, [cid]: { status: "error", error: "Failed" } }))
+                } finally {
+                    setInspectorLoading(prev => ({ ...prev, [cid]: false }))
+                }
+            })()
+        })
+    }, [productHistory]) // eslint-disable-line react-hooks/exhaustive-deps
+
     if (loading) {
         return <PageWrapper><Sidebar /><main className="ml-[15vw] min-h-screen flex items-center justify-center text-white font-bold">Loading...</main></PageWrapper>
     }
@@ -554,6 +597,13 @@ export default function DiscoverPage() {
                                                         <div className="mt-3 p-3 bg-white/5 rounded-xl border border-white/5 font-mono text-[10px] text-slate-400 break-all">
                                                             CID: {h.cid}
                                                         </div>
+
+                                                        {/* ── AI Anomaly Insight badge ── */}
+                                                        <AnomalyInsight
+                                                            analysis={inspectorAnalyses[h.cid] || null}
+                                                            loading={inspectorLoading[h.cid] || false}
+                                                            compact={true}
+                                                        />
                                                     </div>
                                                 </div>
                                             )) : (
