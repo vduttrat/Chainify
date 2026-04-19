@@ -281,7 +281,7 @@ export default function DiscoverPage() {
         }
     }
 
-    const handleVerifyProduct = async (productId, description) => {
+    const handleVerifyProduct = async (productId, description, isVerified) => {
         if (!isConnected || isWrongNetwork) return showStatus("error", "Please connect to Sepolia first.")
         try {
             // Upload to Pinata
@@ -289,6 +289,7 @@ export default function DiscoverPage() {
                 pinataContent: {
                     productId: productId.toString(),
                     description: description,
+                    isVerified: isVerified,
                     verifiedBy: userAddress,
                     timestamp: new Date().toISOString()
                 },
@@ -310,7 +311,10 @@ export default function DiscoverPage() {
             const pinataJson = await pinataRes.json()
             const realCid = pinataJson.IpfsHash
             
-            const currentEmployee = employees.find(emp => emp.wallet.toLowerCase() === userAddress.toLowerCase())
+            const currentEmployee = employees.find(emp => 
+                emp.wallet.toLowerCase() === userAddress.toLowerCase() && 
+                emp.role.toLowerCase() === role.toLowerCase()
+            )
             
             if (!currentEmployee) {
                 showStatus("error", "You are not an active employee.")
@@ -325,7 +329,7 @@ export default function DiscoverPage() {
                 functionName: "updateHistory",
                 args: [
                     BigInt(productId),
-                    true, // verified
+                    isVerified, // verified status
                     realCid,
                     "0x", // placeholder proof
                     userCommitment

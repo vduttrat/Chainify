@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { DashboardCard, EmptyState } from "../dashboard/DashboardUI"
-import { FiLayers, FiArrowRight, FiCheckCircle, FiUploadCloud, FiClock } from "react-icons/fi"
+import { FiLayers, FiArrowRight, FiCheckCircle, FiUploadCloud, FiClock, FiXCircle } from "react-icons/fi"
 
 const targetStageMap = {
   farmer: 0,
@@ -25,11 +25,15 @@ export default function EmployeeView({
         ? productHistory[productHistory.length - 1].currentStage 
         : null
 
-    const canVerify = latestStage === targetStage
+    const isPreviousStageApproved = productHistory && productHistory.length > 0 
+        ? productHistory[productHistory.length - 1].verified 
+        : false
 
-    const handleVerify = async (e) => {
-        e.preventDefault()
-        await onVerifyProduct(selectedProduct.id, description)
+    const canVerify = latestStage === targetStage && isPreviousStageApproved
+
+    const handleVerify = async (isVerified) => {
+        if (!description.trim()) return;
+        await onVerifyProduct(selectedProduct.id, description, isVerified)
         setDescription("")
     }
 
@@ -106,9 +110,9 @@ export default function EmployeeView({
                             </div>
 
                             {canVerify ? (
-                                <form onSubmit={handleVerify} className="space-y-6">
+                                <div className="space-y-6">
                                     <div className="space-y-2">
-                                        <label className="text-[10px] uppercase font-black text-slate-500 tracking-widest ml-1">Stage Verification Notes</label>
+                                        <label className="text-[10px] uppercase font-black text-slate-500 tracking-widest ml-1">Stage Verification Notes (Required)</label>
                                         <textarea 
                                             required
                                             placeholder={`Describe the ${role} verification details...`}
@@ -117,11 +121,23 @@ export default function EmployeeView({
                                             className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 min-h-[150px] focus:outline-none focus:border-emerald-500/50 transition-all"
                                         />
                                     </div>
-                                    <button type="submit" className="w-full py-6 bg-emerald-500 text-black font-black text-xl rounded-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-[0_0_30px_rgba(59,130,246,0.4)] flex items-center justify-center gap-3">
-                                        <FiUploadCloud className="text-2xl" />
-                                        Verify & Submit to Chain
-                                    </button>
-                                </form>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <button 
+                                            onClick={() => handleVerify(true)} 
+                                            disabled={!description.trim()}
+                                            className="w-full py-5 bg-emerald-500 text-black font-black text-lg rounded-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-[0_0_30px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
+                                            <FiUploadCloud className="text-xl" />
+                                            Approve
+                                        </button>
+                                        <button 
+                                            onClick={() => handleVerify(false)} 
+                                            disabled={!description.trim()}
+                                            className="w-full py-5 bg-red-500 text-white font-black text-lg rounded-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-[0_0_30px_rgba(239,68,68,0.3)] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
+                                            <FiXCircle className="text-xl" />
+                                            Reject
+                                        </button>
+                                    </div>
+                                </div>
                             ) : (
                                 <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-3xl text-center">
                                     <FiCheckCircle className="text-4xl text-red-400 mx-auto mb-3" />
