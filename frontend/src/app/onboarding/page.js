@@ -38,9 +38,9 @@ export default function OnboardingPage() {
 
   const roleOptions = [
     { id: 'company', title: 'Company', desc: 'Enterprise level entity managing assets.', icon: FiBriefcase },
-    { id: 'supplier', title: 'Supplier', desc: 'Providing raw materials or resources.', icon: FiGlobe },
+    { id: 'farmer', title: 'Supplier', desc: 'Providing raw materials or resources.', icon: FiGlobe },
     { id: 'manufacturer', title: 'Manufacturer', desc: 'Producing components or finished goods.', icon: FiCpu },
-    { id: 'distributer', title: 'Distributer', desc: 'Managing logistics and supply chains.', icon: FiTruck },
+    { id: 'distributor', title: 'Distributor', desc: 'Managing logistics and supply chains.', icon: FiTruck },
     { id: 'retailer', title: 'Retailer', desc: 'Direct-to-customer product sales.', icon: FiShoppingBag },
     { id: 'consumer', title: 'Consumer', desc: 'End-user verifying product authenticity.', icon: FiUser },
   ]
