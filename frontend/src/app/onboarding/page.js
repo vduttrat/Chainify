@@ -46,68 +46,69 @@ export default function OnboardingPage() {
   ]
 
   return (
-    <PageWrapper className="flex items-center justify-center p-4">
-      <div className="max-w-3xl w-full animate-in slide_in fill-mode-forwards">
-        <div className="glass-card p-12 rounded-[3rem] relative overflow-hidden">
+    <PageWrapper className="flex items-center justify-center p-8 md:p-12">
+      <div className="max-w-4xl w-full animate-in slide-in-from-bottom duration-700">
+        <div className="glass-card p-12 md:p-16 rounded-[3rem] relative overflow-hidden border border-white/10 shadow-2xl">
           
-          <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="text-center mb-10">
-              <h1 className="text-5xl font-black mb-4 tracking-tight">
+          <div className="space-y-12 animate-in fade-in duration-500">
+            <div className="text-center">
+              <h1 className="text-6xl font-black mb-6 tracking-tight">
                 <span className="gradient-text">Identify your role</span>
               </h1>
-              <p className="text-slate-400 text-lg">
-                Your profile details have been synced. Please select your position within the protocol.
+              <p className="text-slate-400 text-xl font-medium max-w-2xl mx-auto leading-relaxed">
+                Connect your professional identity to the protocol. Select your position to unlock your custom dashboard.
               </p>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {roleOptions.map((option) => (
                 <button
                   key={option.id}
                   onClick={() => setRolePreference(option.id)}
-                  className={`flex flex-col gap-4 p-6 rounded-3xl border transition-all text-left group ${
+                  className={`flex flex-col gap-6 p-8 rounded-[2.5rem] border transition-all text-left group relative ${
                     rolePreference === option.id 
-                      ? "bg-emerald-500/10 border-emerald-500/50 shadow-[0_0_20px_rgba(16,185,129,0.1)]" 
-                      : "bg-white/5 border-white/10 hover:border-white/20"
+                      ? "bg-emerald-500/10 border-emerald-500/50 shadow-[0_0_40px_rgba(16,185,129,0.15)] ring-1 ring-emerald-500/30" 
+                      : "bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10"
                   }`}
                 >
                   <div className="flex items-center justify-between w-full">
-                    <div className={`p-3 rounded-xl transition-colors ${rolePreference === option.id ? "bg-emerald-500 text-black" : "bg-white/10 text-white group-hover:bg-white/20"}`}>
-                      <option.icon className="text-2xl" />
+                    <div className={`p-4 rounded-2xl transition-all duration-300 ${rolePreference === option.id ? "bg-emerald-500 text-black scale-110 shadow-lg" : "bg-white/10 text-white group-hover:bg-white/20"}`}>
+                      <option.icon className="text-3xl" />
                     </div>
                     {rolePreference === option.id && (
-                        <div className="bg-emerald-500 rounded-full p-1 animate-in zoom-in">
-                            <FiCheck className="text-black text-sm" />
+                        <div className="bg-emerald-500 rounded-full p-1.5 animate-in zoom-in shadow-lg">
+                            <FiCheck className="text-black text-sm font-black" />
                         </div>
                     )}
                   </div>
                   <div>
-                    <h3 className="font-bold text-xl mb-1">{option.title}</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">{option.desc}</p>
+                    <h3 className="font-black text-2xl mb-2 tracking-tight">{option.title}</h3>
+                    <p className="text-slate-500 text-sm leading-relaxed font-medium group-hover:text-slate-400 transition-colors">{option.desc}</p>
                   </div>
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="mt-12 flex justify-center">
+          <div className="mt-16 flex justify-center">
             <button
               onClick={handleComplete}
               disabled={loading}
               className={`
-                group flex items-center gap-4 px-16 py-6 rounded-2xl font-bold text-xl transition-all
+                group flex items-center gap-6 px-20 py-7 rounded-2xl font-black text-2xl transition-all
                 ${loading
-                  ? "bg-white/5 text-slate-500 cursor-not-allowed" 
-                  : "bg-emerald-500 text-black shadow-[0_0_30px_rgba(16,185,129,0.4)] hover:shadow-[0_0_40px_rgba(16,185,129,0.6)] hover:scale-105 active:scale-95"
+                  ? "bg-white/5 text-slate-500 cursor-not-allowed opacity-50" 
+                  : "bg-emerald-500 text-black shadow-[0_0_50px_rgba(16,185,129,0.5)] hover:shadow-[0_0_70px_rgba(16,185,129,0.7)] hover:scale-105 active:scale-95"
                 }
               `}
             >
-              {loading ? "Initializing..." : "Complete Setup"}
-              {!loading && <FiArrowRight className="group-hover:translate-x-1 transition-transform" />}
+              {loading ? "Initializing Identity..." : "Authorize Role"}
+              {!loading && <FiArrowRight className="group-hover:translate-x-2 transition-transform text-3xl" />}
             </button>
           </div>
         </div>
       </div>
     </PageWrapper>
+
   )
 }
