@@ -1,0 +1,5 @@
+wallet_address = "1"
+secret_salt = "42"
+role_value = "1"
+required_role = "1"
+commitment = "0x210daf390fa992e2afdfa6d0bd3f87287731028a7f7659de79e0be94add1c5c8"

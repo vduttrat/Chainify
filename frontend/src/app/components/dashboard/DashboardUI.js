@@ -3,20 +3,22 @@
 import { FiPlus, FiTrash2, FiUserPlus, FiPackage, FiSearch, FiInfo } from "react-icons/fi"
 
 export const DashboardCard = ({ title, icon: Icon, children, className = "" }) => (
-    <div className={`glass-card p-6 rounded-[2rem] border border-white/10 flex flex-col gap-6 ${className}`}>
+    <div className={`glass-card p-10 rounded-[2.5rem] border border-white/10 flex flex-col gap-8 h-full ${className}`}>
         <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-                <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400">
-                    <Icon className="text-xl" />
+            <div className="flex items-center gap-4">
+                <div className="p-4 rounded-2xl bg-emerald-500/10 text-emerald-400">
+                    <Icon className="text-2xl" />
                 </div>
-                <h3 className="text-xl font-bold tracking-tight">{title}</h3>
+                <h3 className="text-2xl font-black tracking-tight">{title}</h3>
             </div>
         </div>
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col">
             {children}
         </div>
     </div>
 )
+
+
 
 export const StatCard = ({ label, value, icon: Icon, color = "emerald" }) => (
     <div className="glass-card p-6 rounded-3xl border border-white/5 flex items-center gap-6">

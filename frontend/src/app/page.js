@@ -1,5 +1,5 @@
 import Image from "next/image";
-import sample from "./sample.jpg";
+import sample from "./Chainify_final_image.png";
 import PageWrapper from "./components/pagewrapper";
 import NavButton from "./components/navbutton";
 import FeatureCard from "./components/FeatureCard";
