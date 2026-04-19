@@ -219,7 +219,7 @@ export default function DiscoverPage() {
         try {
             const secret = Math.random().toString(36).substring(7)
             const commitment = generateEmployeeCommitment(
-                employeeForm.wallet,
+                employeeForm.wallet.trim(),
                 employeeForm.role.toUpperCase(),
                 secret
             )
@@ -232,6 +232,7 @@ export default function DiscoverPage() {
             })
 
             setAddEmployeeHash(hash)
+            setOptimisticallyRemovedWallets(prev => prev.filter(w => w !== employeeForm.wallet.trim().toLowerCase()))
             showStatus("success", "Transaction broadcasted! Waiting for confirmation...")
             setEmployeeForm({ wallet: "", role: "farmer" })
         } catch (err) {
