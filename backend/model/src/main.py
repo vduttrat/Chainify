@@ -11,6 +11,7 @@ from langchain_cohere import CohereRerank
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import os
 load_dotenv()
 
 app = FastAPI()
@@ -36,8 +37,9 @@ COLLECTION_NAME = "food"
 MODEL="llama-3.3-70b-versatile"
 vectorstore = QdrantVectorStore.from_existing_collection(
     collection_name=COLLECTION_NAME,
-    embedding=bge_embeddings,
-    url="http://localhost:6333"
+    url=os.getenv("QDRANT_URL"),
+    api_key=os.getenv("QDRANT_API_KEY"),
+    embedding=bge_embeddings
 )
 
 base_retriever = vectorstore.as_retriever(search_kwargs={"k":20})
