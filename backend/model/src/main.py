@@ -163,7 +163,16 @@ workflow.add_edge("eval", END)
 graph = workflow.compile()
 graph.get_graph().draw_mermaid_png()
 
+# --- Backend Cache ---
+_backend_cache = {}
+
 def contact_llm(msg: str):
+    # Standardise key
+    cache_key = msg.strip().lower()
+    if cache_key in _backend_cache:
+        print(f"--- Cache Hit for: {cache_key} ---")
+        return _backend_cache[cache_key]
+
     initial_request = state.AnalyzeRequest(
         event_description=msg
     )
@@ -174,6 +183,10 @@ def contact_llm(msg: str):
             print(f"--- Completed Node: {node_name} ---")
             if node_name == "eval":
                 final_evaluation = update["evaluation"]
+    
+    # Store in cache
+    if final_evaluation:
+        _backend_cache[cache_key] = final_evaluation
                 
     return final_evaluation
 
