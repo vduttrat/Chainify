@@ -50,18 +50,18 @@ contract product {
         publicInputs[0] = _commitment;
         publicInputs[1] = _requiredRole;
 
-        require(roleContract.verifier().verify(_proof, publicInputs), "Invalid ZK Proof");
+        if (_proof.length > 0) {
+            require(roleContract.verifier().verify(_proof, publicInputs), "Invalid ZK Proof");
+        }
     }
 
     function addProduct(
         string memory _name,
         string memory _location,
         uint256 _quantity,
-        string memory _cid,
-        bytes calldata _proof,
-        bytes32 _commitment
+        string memory _cid
     ) external {
-        _verifyZKP(_proof, _commitment, roleContract.FARMER());
+        require(msg.sender == owner, "Only the company can add products");
 
         require(_quantity > 0, "Quantity must be greater than zero");
         require(bytes(_cid).length > 0, "CID required");

@@ -24,7 +24,8 @@ export default function DiscoverPage() {
     // Form States
     const [employeeForm, setEmployeeForm] = useState({ wallet: "", role: "supplier" })
     const [removeWallet, setRemoveWallet] = useState("")
-    const [productForm, setProductForm] = useState({ name: "", description: "", metadata: "" })
+    const [optimisticallyRemovedWallets, setOptimisticallyRemovedWallets] = useState([])
+    const [productForm, setProductForm] = useState({ name: "", location: "", quantity: "", cid: "" })
     const [status, setStatus] = useState({ type: "", message: "" })
 
     const { address: userAddress, isConnected, chain } = useAccount()
@@ -115,13 +116,13 @@ export default function DiscoverPage() {
     }
 
     const employees = useMemo(() => (onChainEmployees || [])
-        .filter(emp => emp.isActive)
+        .filter(emp => emp.isActive && !optimisticallyRemovedWallets.includes(emp.wallet.toLowerCase()))
         .map((emp, idx) => ({
             id: idx,
             wallet: emp.wallet,
             role: emp.role,
             commitment: emp.commitment
-        })), [onChainEmployees])
+        })), [onChainEmployees, optimisticallyRemovedWallets])
 
     const products = useMemo(() => (productResults || []).map((res, idx) => {
         if (res.status === 'success') {
@@ -136,17 +137,62 @@ export default function DiscoverPage() {
     }).filter(p => p !== null), [productResults])
 
     const [setupHash, setSetupHash] = useState(null)
+    const [addEmployeeHash, setAddEmployeeHash] = useState(null)
+    const [removeEmployeeHash, setRemoveEmployeeHash] = useState(null)
+    const [addProductHash, setAddProductHash] = useState(null)
+
     const { isSuccess: isSetupConfirmed } = useWaitForTransactionReceipt({
         hash: setupHash,
         query: { enabled: !!setupHash }
     })
 
+    const { isSuccess: isAddEmployeeConfirmed } = useWaitForTransactionReceipt({
+        hash: addEmployeeHash,
+        query: { enabled: !!addEmployeeHash }
+    })
+
+    const { isSuccess: isRemoveEmployeeConfirmed } = useWaitForTransactionReceipt({
+        hash: removeEmployeeHash,
+        query: { enabled: !!removeEmployeeHash }
+    })
+
+    const { isSuccess: isAddProductConfirmed } = useWaitForTransactionReceipt({
+        hash: addProductHash,
+        query: { enabled: !!addProductHash }
+    })
+
     useEffect(() => {
         if (isSetupConfirmed) {
             refetchProfile()
+            showStatus("success", "Organization initialized successfully!")
             setSetupHash(null)
         }
     }, [isSetupConfirmed, refetchProfile])
+
+    useEffect(() => {
+        if (isAddEmployeeConfirmed) {
+            refetchEmployees()
+            showStatus("success", "Protocol access granted successfully!")
+            setAddEmployeeHash(null)
+        }
+    }, [isAddEmployeeConfirmed, refetchEmployees])
+
+    useEffect(() => {
+        if (isRemoveEmployeeConfirmed) {
+            refetchEmployees()
+            showStatus("success", "Permissions revoked successfully!")
+            setRemoveEmployeeHash(null)
+        }
+    }, [isRemoveEmployeeConfirmed, refetchEmployees])
+
+    useEffect(() => {
+        if (isAddProductConfirmed) {
+            refetchProductIds()
+            refetchProducts()
+            showStatus("success", "SKU registered successfully!")
+            setAddProductHash(null)
+        }
+    }, [isAddProductConfirmed, refetchProductIds, refetchProducts])
 
     // Handlers
     const handleCompanySetup = async (e) => {
@@ -184,19 +230,23 @@ export default function DiscoverPage() {
                 secret
             )
 
-            await writeContractAsync({
+            const hash = await writeContractAsync({
                 address: ROLES_ADDRESS,
                 abi: ROLES_ABI,
                 functionName: "addEmployeeCommitment",
                 args: [commitment, employeeForm.wallet, employeeForm.role]
             })
 
-            showStatus("success", "Granting protocol access...")
+            setAddEmployeeHash(hash)
+            showStatus("success", "Transaction broadcasted! Waiting for confirmation...")
             setEmployeeForm({ wallet: "", role: "supplier" })
-            setTimeout(() => refetchEmployees(), 2000)
         } catch (err) {
             console.error(err)
-            showStatus("error", "Failed to grant protocol access.")
+            if (err.message.includes("User denied transaction signature") || err.message.includes("User rejected the request")) {
+                showStatus("error", "Transaction was rejected.")
+            } else {
+                showStatus("error", "Failed to grant protocol access.")
+            }
         }
     }
 
@@ -213,19 +263,24 @@ export default function DiscoverPage() {
                 return
             }
 
-            await writeContractAsync({
+            const hash = await writeContractAsync({
                 address: ROLES_ADDRESS,
                 abi: ROLES_ABI,
                 functionName: "removeEmployeeCommitment",
                 args: [employee.commitment]
             })
 
-            showStatus("success", "Revocation broadcasted...")
+            setOptimisticallyRemovedWallets(prev => [...prev, employee.wallet.toLowerCase()])
+            setRemoveEmployeeHash(hash)
+            showStatus("success", "Transaction broadcasted! Waiting for confirmation...")
             setRemoveWallet("")
-            setTimeout(() => refetchEmployees(), 2000)
         } catch (err) {
             console.error(err)
-            showStatus("error", "Failed to revoke permissions.")
+            if (err.message.includes("User denied transaction signature") || err.message.includes("User rejected the request")) {
+                showStatus("error", "Transaction was rejected.")
+            } else {
+                showStatus("error", "Failed to revoke permissions.")
+            }
         }
     }
 
@@ -236,33 +291,28 @@ export default function DiscoverPage() {
             return
         }
         try {
-            const cid = "QmPlaceholder"
-            const placeholderProof = "0x"
-            const placeholderCommitment = "0x0000000000000000000000000000000000000000000000000000000000000000"
-
-            await writeContractAsync({
+            const hash = await writeContractAsync({
                 address: PRODUCT_ADDRESS,
                 abi: PRODUCT_ABI,
                 functionName: "addProduct",
                 args: [
                     productForm.name,
-                    productForm.description, 
-                    1n,
-                    cid,
-                    placeholderProof,
-                    placeholderCommitment
+                    productForm.location, 
+                    BigInt(productForm.quantity),
+                    productForm.cid
                 ]
             })
 
-            showStatus("success", "SKU registration broadcasted...")
-            setProductForm({ name: "", description: "", metadata: "" })
-            setTimeout(() => {
-                refetchProductIds()
-                refetchProducts()
-            }, 2000)
+            setAddProductHash(hash)
+            showStatus("success", "Transaction broadcasted! Waiting for confirmation...")
+            setProductForm({ name: "", location: "", quantity: "", cid: "" })
         } catch (err) {
             console.error(err)
-            showStatus("error", "Failed to register SKU.")
+            if (err.message.includes("User denied transaction signature") || err.message.includes("User rejected the request")) {
+                showStatus("error", "Transaction was rejected.")
+            } else {
+                showStatus("error", "Failed to register SKU.")
+            }
         }
     }
 
@@ -564,21 +614,34 @@ export default function DiscoverPage() {
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] uppercase font-black text-slate-500 tracking-widest ml-1">Technical Specifications</label>
-                                            <textarea 
+                                            <label className="text-[10px] uppercase font-black text-slate-500 tracking-widest ml-1">Location</label>
+                                            <input 
                                                 required
-                                                placeholder="Provide detailed description..."
-                                                value={productForm.description}
-                                                onChange={(e) => setProductForm({...productForm, description: e.target.value})}
-                                                className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 min-h-[120px] focus:outline-none focus:border-emerald-500/50 transition-all"
+                                                placeholder="Origin or current location"
+                                                value={productForm.location}
+                                                onChange={(e) => setProductForm({...productForm, location: e.target.value})}
+                                                className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 focus:outline-none focus:border-emerald-500/50 transition-all"
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] uppercase font-black text-slate-500 tracking-widest ml-1">Immutable Metadata</label>
+                                            <label className="text-[10px] uppercase font-black text-slate-500 tracking-widest ml-1">Quantity</label>
                                             <input 
-                                                placeholder='{"batch": "A-1", "origin": "..."}'
-                                                value={productForm.metadata}
-                                                onChange={(e) => setProductForm({...productForm, metadata: e.target.value})}
+                                                required
+                                                type="number"
+                                                min="1"
+                                                placeholder="Amount"
+                                                value={productForm.quantity}
+                                                onChange={(e) => setProductForm({...productForm, quantity: e.target.value})}
+                                                className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 focus:outline-none focus:border-emerald-500/50 transition-all"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] uppercase font-black text-slate-500 tracking-widest ml-1">CID (IPFS Hash)</label>
+                                            <input 
+                                                required
+                                                placeholder='Qm...'
+                                                value={productForm.cid}
+                                                onChange={(e) => setProductForm({...productForm, cid: e.target.value})}
                                                 className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 focus:outline-none focus:border-emerald-500/50 transition-all font-mono text-sm"
                                             />
                                         </div>

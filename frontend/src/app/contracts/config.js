@@ -1,5 +1,5 @@
 export const ROLES_ADDRESS = "0xDA27b656bc9f86B705d3d033023Cb50183A050F6"
-export const PRODUCT_ADDRESS = "0x6C534ba3C00943c6B507846f812C5e0AE4bb6ca2"
+export const PRODUCT_ADDRESS = "0xAF09e217146A8c77f8B56DC6E21884668aFFF153"
 
 export const ROLES_ABI = [
   {
@@ -450,16 +450,6 @@ export const PRODUCT_ABI = [
         "internalType": "string",
         "name": "_cid",
         "type": "string"
-      },
-      {
-        "internalType": "bytes",
-        "name": "_proof",
-        "type": "bytes"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "_commitment",
-        "type": "bytes32"
       }
     ],
     "name": "addProduct",
