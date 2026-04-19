@@ -1,11 +1,16 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { supabase } from "../../../lib/supabase"
 import PageWrapper from "../components/pagewrapper"
 import Sidebar from "../components/sidebar"
 import { DashboardCard, StatCard, EmptyState } from "../components/dashboard/DashboardUI"
-import { FiUserPlus, FiUserMinus, FiPackage, FiInfo, FiCheckCircle, FiBriefcase, FiGlobe, FiTrash2 } from "react-icons/fi"
+import { FiUserPlus, FiUserMinus, FiPackage, FiInfo, FiCheckCircle, FiBriefcase, FiGlobe, FiTrash2, FiClock, FiSearch, FiLayers, FiArrowRight, FiLink, FiLogOut } from "react-icons/fi"
+import { useAccount, useWriteContract, useReadContract, useReadContracts, useWaitForTransactionReceipt, useConnect, useDisconnect, useSwitchChain } from "wagmi"
+import { injected } from "wagmi/connectors"
+import { sepolia } from "wagmi/chains"
+import { ROLES_ABI, ROLES_ADDRESS, PRODUCT_ABI, PRODUCT_ADDRESS } from "../contracts/config"
+import { generateEmployeeCommitment, PROTOCOL_ROLES } from "../../../lib/zkUtils"
 
 export default function DiscoverPage() {
     const [loading, setLoading] = useState(true)
@@ -14,8 +19,7 @@ export default function DiscoverPage() {
     // Company State
     const [isInitialized, setIsInitialized] = useState(false)
     const [companyData, setCompanyData] = useState({ name: "", description: "", logo: "" })
-    const [employees, setEmployees] = useState([])
-    const [products, setProducts] = useState([])
+    const [selectedProduct, setSelectedProduct] = useState(null)
     
     // Form States
     const [employeeForm, setEmployeeForm] = useState({ wallet: "", role: "supplier" })
@@ -23,9 +27,63 @@ export default function DiscoverPage() {
     const [productForm, setProductForm] = useState({ name: "", description: "", metadata: "" })
     const [status, setStatus] = useState({ type: "", message: "" })
 
+    const { address: userAddress, isConnected, chain } = useAccount()
+    const { connect } = useConnect()
+    const { disconnect } = useDisconnect()
+    const { switchChain } = useSwitchChain()
+    const { writeContractAsync } = useWriteContract()
+
+    const isWrongNetwork = isConnected && chain?.id !== sepolia.id
+    
+    // 1. Fetch Company Profile
+    const { data: onChainProfile, refetch: refetchProfile } = useReadContract({
+        address: ROLES_ADDRESS,
+        abi: ROLES_ABI,
+        functionName: 'companyProfiles',
+        args: [userAddress],
+        query: { enabled: !!userAddress && isConnected && !isWrongNetwork }
+    })
+
+    // 2. Fetch Employees
+    const { data: onChainEmployees, refetch: refetchEmployees } = useReadContract({
+        address: ROLES_ADDRESS,
+        abi: ROLES_ABI,
+        functionName: 'getEmployees',
+        query: { enabled: !!userAddress && isConnected && !isWrongNetwork }
+    })
+
+    // 3. Fetch Products (IDs first, then details)
+    const { data: onChainProductIds, refetch: refetchProductIds } = useReadContract({
+        address: PRODUCT_ADDRESS,
+        abi: PRODUCT_ABI,
+        functionName: 'getAllProductIds',
+        query: { enabled: isConnected && !isWrongNetwork }
+    })
+
+    const productCalls = useMemo(() => (onChainProductIds || []).map(id => ({
+        address: PRODUCT_ADDRESS,
+        abi: PRODUCT_ABI,
+        functionName: 'getProduct',
+        args: [id],
+    })), [onChainProductIds])
+
+    const { data: productResults, refetch: refetchProducts } = useReadContracts({
+        contracts: productCalls,
+        query: { enabled: productCalls.length > 0 && isConnected && !isWrongNetwork }
+    })
+
+    // 4. Fetch Selected Product History
+    const { data: productHistory } = useReadContract({
+        address: PRODUCT_ADDRESS,
+        abi: PRODUCT_ABI,
+        functionName: 'getHistory',
+        args: [selectedProduct?.id],
+        query: { enabled: !!selectedProduct && isConnected && !isWrongNetwork }
+    })
+
     useEffect(() => {
         const initialize = async () => {
-            // 1. Fetch Role from Supabase
+            // 1. Fetch Role from Supabase (Auth only)
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
                 const { data: profile } = await supabase
@@ -35,65 +93,178 @@ export default function DiscoverPage() {
                     .single();
                 setRole(profile?.role || "none")
             }
-
-            // 2. Load from LocalStorage
-            const storedCompany = localStorage.getItem("chainify_company")
-            const storedEmployees = localStorage.getItem("chainify_employees")
-            const storedProducts = localStorage.getItem("chainify_products")
-
-            if (storedCompany) {
-                setCompanyData(JSON.parse(storedCompany))
-                setIsInitialized(true)
-            }
-            if (storedEmployees) setEmployees(JSON.parse(storedEmployees))
-            if (storedProducts) setProducts(JSON.parse(storedProducts))
-
             setLoading(false)
         }
         initialize()
     }, []);
+
+    useEffect(() => {
+        if (onChainProfile && (onChainProfile[3] === true || onChainProfile.initialized === true)) {
+            setCompanyData({
+                name: onChainProfile[0] || onChainProfile.name,
+                description: onChainProfile[1] || onChainProfile.description,
+                logo: onChainProfile[2] || onChainProfile.logo
+            })
+            setIsInitialized(true)
+        }
+    }, [onChainProfile])
 
     const showStatus = (type, message) => {
         setStatus({ type, message })
         setTimeout(() => setStatus({ type: "", message: "" }), 3000)
     }
 
+    const employees = useMemo(() => (onChainEmployees || [])
+        .filter(emp => emp.isActive)
+        .map((emp, idx) => ({
+            id: idx,
+            wallet: emp.wallet,
+            role: emp.role,
+            commitment: emp.commitment
+        })), [onChainEmployees])
+
+    const products = useMemo(() => (productResults || []).map((res, idx) => {
+        if (res.status === 'success') {
+            return {
+                id: Number(res.result.id),
+                name: res.result.name,
+                description: res.result.location, 
+                quantity: Number(res.result.quantity)
+            }
+        }
+        return null
+    }).filter(p => p !== null), [productResults])
+
+    const [setupHash, setSetupHash] = useState(null)
+    const { isSuccess: isSetupConfirmed } = useWaitForTransactionReceipt({
+        hash: setupHash,
+        query: { enabled: !!setupHash }
+    })
+
+    useEffect(() => {
+        if (isSetupConfirmed) {
+            refetchProfile()
+            setSetupHash(null)
+        }
+    }, [isSetupConfirmed, refetchProfile])
+
     // Handlers
-    const handleCompanySetup = (e) => {
+    const handleCompanySetup = async (e) => {
         e.preventDefault()
-        localStorage.setItem("chainify_company", JSON.stringify(companyData))
-        setIsInitialized(true)
-        showStatus("success", "Company profile initialized successfully!")
+        if (!isConnected || isWrongNetwork) {
+            showStatus("error", "Please connect to Sepolia first.")
+            return
+        }
+        try {
+            const hash = await writeContractAsync({
+                address: ROLES_ADDRESS,
+                abi: ROLES_ABI,
+                functionName: "setCompanyProfile",
+                args: [companyData.name, companyData.description, companyData.logo]
+            })
+            setSetupHash(hash)
+            showStatus("success", "Initialization transaction sent! Waiting for confirmation...")
+        } catch (err) {
+            console.error(err)
+            showStatus("error", "Failed to initialize organization.")
+        }
     }
 
-    const handleAddEmployee = (e) => {
+    const handleAddEmployee = async (e) => {
         e.preventDefault()
-        const newEmployees = [...employees, { ...employeeForm, id: Date.now() }]
-        setEmployees(newEmployees)
-        localStorage.setItem("chainify_employees", JSON.stringify(newEmployees))
-        setEmployeeForm({ wallet: "", role: "supplier" })
-        showStatus("success", "Employee added to registry.")
+        if (!isConnected || isWrongNetwork) {
+            showStatus("error", "Please connect to Sepolia first.")
+            return
+        }
+        try {
+            const secret = Math.random().toString(36).substring(7)
+            const commitment = generateEmployeeCommitment(
+                employeeForm.wallet,
+                employeeForm.role.toUpperCase(),
+                secret
+            )
+
+            await writeContractAsync({
+                address: ROLES_ADDRESS,
+                abi: ROLES_ABI,
+                functionName: "addEmployeeCommitment",
+                args: [commitment, employeeForm.wallet, employeeForm.role]
+            })
+
+            showStatus("success", "Granting protocol access...")
+            setEmployeeForm({ wallet: "", role: "supplier" })
+            setTimeout(() => refetchEmployees(), 2000)
+        } catch (err) {
+            console.error(err)
+            showStatus("error", "Failed to grant protocol access.")
+        }
     }
 
-    const handleRemoveEmployee = (e) => {
+    const handleRemoveEmployee = async (e) => {
         e.preventDefault()
-        const newEmployees = employees.filter(emp => emp.wallet !== removeWallet)
-        setEmployees(newEmployees)
-        localStorage.setItem("chainify_employees", JSON.stringify(newEmployees))
-        setRemoveWallet("")
-        showStatus("success", "Employee removed.")
+        if (!isConnected || isWrongNetwork) {
+            showStatus("error", "Please connect to Sepolia first.")
+            return
+        }
+        try {
+            const employee = employees.find(emp => emp.wallet.toLowerCase() === removeWallet.toLowerCase())
+            if (!employee) {
+                showStatus("error", "Employee not found in registry.")
+                return
+            }
+
+            await writeContractAsync({
+                address: ROLES_ADDRESS,
+                abi: ROLES_ABI,
+                functionName: "removeEmployeeCommitment",
+                args: [employee.commitment]
+            })
+
+            showStatus("success", "Revocation broadcasted...")
+            setRemoveWallet("")
+            setTimeout(() => refetchEmployees(), 2000)
+        } catch (err) {
+            console.error(err)
+            showStatus("error", "Failed to revoke permissions.")
+        }
     }
 
-    const handleAddProduct = (e) => {
+    const handleAddProduct = async (e) => {
         e.preventDefault()
-        const newProducts = [...products, { ...productForm, id: Date.now() }]
-        setProducts(newProducts)
-        localStorage.setItem("chainify_products", JSON.stringify(newProducts))
-        setProductForm({ name: "", description: "", metadata: "" })
-        showStatus("success", "Product registered successfully.")
-    }
+        if (!isConnected || isWrongNetwork) {
+            showStatus("error", "Please connect to Sepolia first.")
+            return
+        }
+        try {
+            const cid = "QmPlaceholder"
+            const placeholderProof = "0x"
+            const placeholderCommitment = "0x0000000000000000000000000000000000000000000000000000000000000000"
 
-    if (loading) return null
+            await writeContractAsync({
+                address: PRODUCT_ADDRESS,
+                abi: PRODUCT_ABI,
+                functionName: "addProduct",
+                args: [
+                    productForm.name,
+                    productForm.description, 
+                    1n,
+                    cid,
+                    placeholderProof,
+                    placeholderCommitment
+                ]
+            })
+
+            showStatus("success", "SKU registration broadcasted...")
+            setProductForm({ name: "", description: "", metadata: "" })
+            setTimeout(() => {
+                refetchProductIds()
+                refetchProducts()
+            }, 2000)
+        } catch (err) {
+            console.error(err)
+            showStatus("error", "Failed to register SKU.")
+        }
+    }
 
     // 1. Role Check
     if (role !== "company") {
@@ -116,65 +287,144 @@ export default function DiscoverPage() {
         )
     }
 
-    // 2. Initial Setup View
-    if (!isInitialized) {
+    // 2. Wallet Connection & Network Check
+    if (!isConnected || isWrongNetwork) {
         return (
             <PageWrapper>
                 <Sidebar />
-                <main className="ml-[15vw] min-h-screen p-8 md:p-12 lg:p-16">
-                    <div className="max-w-4xl mx-auto space-y-12 animate-in slide-in-from-bottom duration-700">
-                        <div className="text-left">
-                            <h1 className="text-6xl font-black mb-4 tracking-tight"><span className="gradient-text">Register Your Company</span></h1>
-                            <p className="text-slate-400 text-lg uppercase tracking-widest font-bold">Protocol Onboarding</p>
+                <main className="ml-[15vw] min-h-screen flex items-center justify-center p-8 md:p-12 lg:p-16">
+                    <div className="max-w-xl w-full glass-card p-12 md:p-16 rounded-[3rem] text-center space-y-8 animate-in zoom-in duration-500 border border-white/10">
+                        <div className="w-20 h-20 bg-emerald-500/10 rounded-3xl flex items-center justify-center mx-auto mb-4 border border-emerald-500/20">
+                            <FiLink className="text-4xl text-emerald-400" />
                         </div>
+                        <h2 className="text-4xl font-black tracking-tight">{!isConnected ? "Wallet Required" : "Wrong Network"}</h2>
+                        <p className="text-slate-400 text-lg leading-relaxed">
+                            {!isConnected 
+                                ? "To interact with the Chainify Protocol and manage your organization, you must connect your Ethereum wallet."
+                                : "You are currently connected to an unsupported network. Please switch to the Sepolia Testnet to continue."
+                            }
+                        </p>
                         
-                        <form onSubmit={handleCompanySetup} className="glass-card p-12 md:p-16 rounded-[3rem] space-y-10 border border-white/10">
-                            <div className="space-y-6">
-                                <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest">Legal Name</label>
-                                <input 
-                                    required
-                                    type="text"
-                                    placeholder="Enter company name"
-                                    value={companyData.name}
-                                    onChange={(e) => setCompanyData({...companyData, name: e.target.value})}
-                                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 text-xl focus:outline-none focus:border-emerald-500/50 transition-all font-medium"
-                                />
-                            </div>
-                            <div className="space-y-6">
-                                <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest">Description</label>
-                                <textarea 
-                                    required
-                                    placeholder="Briefly describe your business"
-                                    value={companyData.description}
-                                    onChange={(e) => setCompanyData({...companyData, description: e.target.value})}
-                                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 text-xl min-h-[180px] focus:outline-none focus:border-emerald-500/50 transition-all font-medium"
-                                />
-                            </div>
-                            <div className="space-y-6">
-                                <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest">Logo URL (Optional)</label>
-                                <input 
-                                    type="text"
-                                    placeholder="https://..."
-                                    value={companyData.logo}
-                                    onChange={(e) => setCompanyData({...companyData, logo: e.target.value})}
-                                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 text-xl focus:outline-none focus:border-emerald-500/50 transition-all font-medium"
-                                />
-                            </div>
-                            <button type="submit" className="w-full bg-emerald-500 text-black py-6 rounded-2xl font-black text-2xl shadow-[0_0_30px_rgba(16,185,129,0.4)] hover:scale-[1.02] active:scale-95 transition-all">
-                                Initialize Organization
+                        {!isConnected ? (
+                            <button 
+                                onClick={() => connect({ connector: injected() })}
+                                className="w-full bg-emerald-500 text-black py-6 rounded-2xl font-black text-2xl shadow-[0_0_30px_rgba(16,185,129,0.4)] hover:scale-[1.02] active:scale-95 transition-all mt-4"
+                            >
+                                Connect Wallet
                             </button>
-                        </form>
+                        ) : (
+                            <div className="space-y-4">
+                                <button 
+                                    onClick={() => switchChain({ chainId: sepolia.id })}
+                                    className="w-full bg-emerald-500 text-black py-6 rounded-2xl font-black text-2xl shadow-[0_0_30px_rgba(16,185,129,0.4)] hover:scale-[1.02] active:scale-95 transition-all mt-4"
+                                >
+                                    Switch to Sepolia
+                                </button>
+                                <button 
+                                    onClick={() => disconnect()}
+                                    className="w-full bg-white/5 text-slate-400 py-4 rounded-2xl font-bold hover:bg-white/10 transition-all"
+                                >
+                                    Disconnect Wallet
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </main>
             </PageWrapper>
         )
     }
 
-    // 3. Main Dashboard View
+    // 3. Initial Setup View
+    if (!isInitialized) {
+        return (
+            <PageWrapper>
+                <Sidebar />
+                <main className="ml-[15vw] min-h-screen p-8 md:p-12 lg:p-16 flex flex-col items-center">
+                    <div className="w-full max-w-[1400px] space-y-12">
+                        {/* Shared Header */}
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h1 className="text-6xl font-black tracking-tight"><span className="gradient-text">Welcome</span></h1>
+                                <p className="text-slate-400 font-bold tracking-[0.3em] uppercase mt-2">Organization Onboarding</p>
+                            </div>
+                            <div className="flex flex-col items-end gap-2">
+                                {status.message && (
+                                    <div className={`flex items-center gap-4 px-8 py-4 rounded-full border ${status.type === "success" ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400" : "bg-red-500/10 border-red-500/50 text-red-400"} shadow-xl animate-in slide-in-from-top`}>
+                                        <FiCheckCircle className="text-xl" />
+                                        <span className="font-bold">{status.message}</span>
+                                    </div>
+                                )}
+                                {userAddress && (
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex flex-col items-end">
+                                            <div className="text-[10px] font-mono text-slate-500 bg-white/5 px-4 py-2 rounded-full border border-white/10">
+                                                {userAddress.slice(0, 6)}...{userAddress.slice(-4)}
+                                            </div>
+                                            <span className="text-[8px] uppercase font-black tracking-widest text-emerald-500 mt-1 mr-2">Connected</span>
+                                        </div>
+                                        <button 
+                                            onClick={() => disconnect()}
+                                            className="h-12 w-12 rounded-2xl bg-red-500 text-black flex items-center justify-center hover:bg-red-600 hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(239,68,68,0.3)] group"
+                                            title="Disconnect Wallet"
+                                        >
+                                            <FiLogOut className="text-xl group-hover:rotate-12 transition-transform" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="max-w-4xl mx-auto w-full space-y-12 animate-in slide-in-from-bottom duration-700">
+                            <form onSubmit={handleCompanySetup} className="glass-card p-12 md:p-16 rounded-[3rem] space-y-10 border border-white/10">
+                                <div className="space-y-6">
+                                    <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest">Legal Name</label>
+                                    <input 
+                                        required
+                                        type="text"
+                                        placeholder="Enter company name"
+                                        value={companyData.name}
+                                        onChange={(e) => setCompanyData({...companyData, name: e.target.value})}
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 text-xl focus:outline-none focus:border-emerald-500/50 transition-all font-medium"
+                                    />
+                                </div>
+                                <div className="space-y-6">
+                                    <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest">Description</label>
+                                    <textarea 
+                                        required
+                                        placeholder="Briefly describe your business"
+                                        value={companyData.description}
+                                        onChange={(e) => setCompanyData({...companyData, description: e.target.value})}
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 text-xl min-h-[180px] focus:outline-none focus:border-emerald-500/50 transition-all font-medium"
+                                    />
+                                </div>
+                                <div className="space-y-6">
+                                    <label className="block text-sm font-bold text-slate-400 uppercase tracking-widest">Logo URL (Optional)</label>
+                                    <input 
+                                        type="text"
+                                        placeholder="https://..."
+                                        value={companyData.logo}
+                                        onChange={(e) => setCompanyData({...companyData, logo: e.target.value})}
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 text-xl focus:outline-none focus:border-emerald-500/50 transition-all font-medium"
+                                    />
+                                </div>
+                                <button type="submit" className="w-full bg-emerald-500 text-black py-6 rounded-2xl font-black text-2xl shadow-[0_0_30px_rgba(16,185,129,0.4)] hover:scale-[1.02] active:scale-95 transition-all">
+                                    Initialize Organization
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </main>
+            </PageWrapper>
+        )
+    }
+
+    const STAGES = ["CREATED", "FARMER", "DISTRIBUTOR", "MANUFACTURER", "RETAILER"]
+
+    // 4. Main Dashboard View
     return (
         <PageWrapper>
             <Sidebar />
-            <main className="ml-[15vw] min-h-screen p-8 md:p-12 lg:p-16 flex flex-col items-center">
+            <main className="ml-[15vw] min-h-screen p-8 md:p-12 lg:p-16 flex flex-col items-center relative">
                 <div className="w-full max-w-[1400px] space-y-12 animate-in fade-in duration-700">
                     
                     {/* Header */}
@@ -183,12 +433,31 @@ export default function DiscoverPage() {
                             <h1 className="text-6xl font-black tracking-tight"><span className="gradient-text">{companyData.name}</span></h1>
                             <p className="text-slate-400 font-bold tracking-[0.3em] uppercase mt-2">Discovery Dashboard</p>
                         </div>
-                        {status.message && (
-                            <div className={`flex items-center gap-4 px-8 py-4 rounded-full border ${status.type === "success" ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400" : "bg-red-500/10 border-red-500/50 text-red-400"} shadow-xl animate-in slide-in-from-top`}>
-                                <FiCheckCircle className="text-xl" />
-                                <span className="font-bold">{status.message}</span>
-                            </div>
-                        )}
+                        <div className="flex flex-col items-end gap-2">
+                            {status.message && (
+                                <div className={`flex items-center gap-4 px-8 py-4 rounded-full border ${status.type === "success" ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400" : "bg-red-500/10 border-red-500/50 text-red-400"} shadow-xl animate-in slide-in-from-top`}>
+                                    <FiCheckCircle className="text-xl" />
+                                    <span className="font-bold">{status.message}</span>
+                                </div>
+                            )}
+                            {userAddress && (
+                                <div className="flex items-center gap-4">
+                                    <div className="flex flex-col items-end">
+                                        <div className="text-[10px] font-mono text-slate-500 bg-white/5 px-4 py-2 rounded-full border border-white/10">
+                                            {userAddress.slice(0, 6)}...{userAddress.slice(-4)}
+                                        </div>
+                                        <span className="text-[8px] uppercase font-black tracking-widest text-emerald-500 mt-1 mr-2">Connected</span>
+                                    </div>
+                                    <button 
+                                        onClick={() => disconnect()}
+                                        className="h-12 w-12 rounded-2xl bg-red-500 text-black flex items-center justify-center hover:bg-red-600 hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(239,68,68,0.3)] group"
+                                        title="Disconnect Wallet"
+                                    >
+                                        <FiLogOut className="text-xl group-hover:rotate-12 transition-transform" />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* Stats */}
@@ -324,7 +593,11 @@ export default function DiscoverPage() {
                                 {products.length === 0 ? <EmptyState message="No products registered yet." /> : (
                                     <div className="space-y-4">
                                         {products.map(prod => (
-                                            <div key={prod.id} className="p-6 bg-white/5 rounded-[2rem] border border-white/5 hover:border-emerald-500/20 transition-all cursor-pointer group hover:bg-white/10">
+                                            <div 
+                                                key={prod.id} 
+                                                onClick={() => setSelectedProduct(prod)}
+                                                className={`p-6 bg-white/5 rounded-[2rem] border transition-all cursor-pointer group hover:bg-white/10 ${selectedProduct?.id === prod.id ? "border-emerald-500/50 bg-emerald-500/5" : "border-white/5 hover:border-emerald-500/20"}`}
+                                            >
                                                 <div className="flex items-center justify-between mb-3">
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -346,15 +619,72 @@ export default function DiscoverPage() {
 
                     </div>
                 </div>
+
+                {/* Product Detail Modal/Panel */}
+                {selectedProduct && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-end p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setSelectedProduct(null)}>
+                        <div className="w-full max-w-2xl h-full bg-[#0a0a0a] rounded-[3rem] border border-white/10 shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-500" onClick={e => e.stopPropagation()}>
+                            <div className="p-12 space-y-12">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h2 className="text-4xl font-black tracking-tight">{selectedProduct.name}</h2>
+                                        <p className="text-slate-500 font-mono text-sm mt-1">Product ID: {selectedProduct.id}</p>
+                                    </div>
+                                    <button onClick={() => setSelectedProduct(null)} className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all">
+                                        <FiTrash2 className="text-xl" />
+                                    </button>
+                                </div>
+
+                                <div className="space-y-8">
+                                    <div className="glass-card p-8 rounded-3xl border border-white/5">
+                                        <h3 className="text-[10px] uppercase font-black text-slate-500 tracking-widest mb-4">On-Chain Audit Trail</h3>
+                                        <div className="space-y-6 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-white/5">
+                                            {productHistory && productHistory.length > 0 ? productHistory.map((h, idx) => (
+                                                <div key={idx} className="relative pl-10">
+                                                    <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-[#0a0a0a] border-2 border-emerald-500 flex items-center justify-center">
+                                                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="font-black text-lg text-white">{STAGES[h.currentStage]}</span>
+                                                            {h.verified && <FiCheckCircle className="text-emerald-400" />}
+                                                        </div>
+                                                        <p className="text-slate-500 text-xs mt-1">Timestamp: {new Date(Number(h.timestamp) * 1000).toLocaleString()}</p>
+                                                        <div className="mt-3 p-3 bg-white/5 rounded-xl border border-white/5 font-mono text-[10px] text-slate-400 break-all">
+                                                            CID: {h.cid}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )) : (
+                                                <div className="flex flex-col items-center justify-center py-10 opacity-50">
+                                                    <FiClock className="text-4xl mb-4" />
+                                                    <p className="text-sm font-bold">Awaiting first stage verification...</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="glass-card p-6 rounded-3xl border border-white/5">
+                                            <span className="text-[10px] uppercase font-black text-slate-500 tracking-widest block mb-1">Batch Size</span>
+                                            <span className="text-2xl font-black">{selectedProduct.quantity} Units</span>
+                                        </div>
+                                        <div className="glass-card p-6 rounded-3xl border border-white/5">
+                                            <span className="text-[10px] uppercase font-black text-slate-500 tracking-widest block mb-1">Status</span>
+                                            <span className="text-2xl font-black text-emerald-400">Live</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button onClick={() => setSelectedProduct(null)} className="w-full py-6 bg-white/5 border border-white/10 rounded-2xl font-black text-xl hover:bg-white/10 transition-all mt-12">
+                                    Close Inspector
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </main>
         </PageWrapper>
     )
 }
 
-// Missing import fix
-const FiArrowRight = ({ className }) => (
-    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-)
-const FiLayers = ({ className }) => (
-    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-)

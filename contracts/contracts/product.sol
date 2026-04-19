@@ -31,6 +31,7 @@ contract product {
 
     mapping(uint256 => batch) private batches;
     mapping(uint256 => history[]) private batchHistory;
+    uint256[] public allProductIds;
 
     uint256 private nextId = 1001;
 
@@ -77,9 +78,14 @@ contract product {
             history(Stage.CREATED, true, block.timestamp, _cid)
         );
 
+        allProductIds.push(nextId);
         emit productAdded(nextId, _name, _location, block.timestamp, _quantity);
 
         nextId++;
+    }
+
+    function getAllProductIds() external view returns (uint256[] memory) {
+        return allProductIds;
     }
 
     function updateHistory(
