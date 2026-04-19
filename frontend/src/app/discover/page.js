@@ -312,7 +312,7 @@ export default function DiscoverPage() {
             
             const currentEmployee = employees.find(emp => emp.wallet.toLowerCase() === userAddress.toLowerCase())
             
-            if (!currentEmployee || !currentEmployee.isActive) {
+            if (!currentEmployee) {
                 showStatus("error", "You are not an active employee.")
                 return
             }
