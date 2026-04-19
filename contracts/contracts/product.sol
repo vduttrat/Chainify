@@ -35,7 +35,7 @@ contract product {
 
     uint256 private nextId = 1001;
 
-    enum Stage { CREATED, FARMER, DISTRIBUTOR, MANUFACTURER, RETAILER }
+    enum Stage { CREATED, FARMER, MANUFACTURER, DISTRIBUTOR, RETAILER }
 
     event productAdded(uint256 id, string name, string location, uint256 time, uint256 quantity);
 
@@ -107,11 +107,11 @@ contract product {
         if (nextStage == Stage.FARMER) {
             _verifyZKP(_proof, _commitment, roleContract.FARMER());
         } 
-        else if (nextStage == Stage.DISTRIBUTOR) {
-            _verifyZKP(_proof, _commitment, roleContract.DISTRIBUTOR());
-        } 
         else if (nextStage == Stage.MANUFACTURER) {
             _verifyZKP(_proof, _commitment, roleContract.MANUFACTURER());
+        } 
+        else if (nextStage == Stage.DISTRIBUTOR) {
+            _verifyZKP(_proof, _commitment, roleContract.DISTRIBUTOR());
         } 
         else if (nextStage == Stage.RETAILER) {
             _verifyZKP(_proof, _commitment, roleContract.RETAILER());
