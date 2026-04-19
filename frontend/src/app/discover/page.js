@@ -5,7 +5,7 @@ import { supabase } from "../../../lib/supabase"
 import PageWrapper from "../components/pagewrapper"
 import Sidebar from "../components/sidebar"
 import { DashboardCard, StatCard, EmptyState } from "../components/dashboard/DashboardUI"
-import { FiUserPlus, FiUserMinus, FiPackage, FiInfo, FiCheckCircle, FiBriefcase, FiGlobe } from "react-icons/fi"
+import { FiUserPlus, FiUserMinus, FiPackage, FiInfo, FiCheckCircle, FiBriefcase, FiGlobe, FiTrash2 } from "react-icons/fi"
 
 export default function DiscoverPage() {
     const [loading, setLoading] = useState(true)
@@ -314,7 +314,7 @@ export default function DiscoverPage() {
                                             />
                                         </div>
                                     </div>
-                                    <button type="submit" className="w-full py-6 bg-blue-500 text-white font-black text-xl rounded-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-[0_0_30px_rgba(59,130,246,0.4)]">
+                                    <button type="submit" className="w-full py-6 bg-emerald-500 text-black font-black text-xl rounded-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-[0_0_30px_rgba(59,130,246,0.4)]">
                                         Register SKU
                                     </button>
                                 </form>
@@ -348,9 +348,6 @@ export default function DiscoverPage() {
                 </div>
             </main>
         </PageWrapper>
-    )
-}
-
     )
 }
 
