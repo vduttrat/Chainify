@@ -15,7 +15,7 @@ export default function Home() {
                 </div>
             </div>
 
-                <Image src={sample} alt="" height="500" width="600" className="rounded-b-4xl rounded-r-4xl"/>
+                <Image src={sample} alt="" height="500" width="600" className="rounded-4xl"/>
         </div>
     </PageWrapper>
   );
