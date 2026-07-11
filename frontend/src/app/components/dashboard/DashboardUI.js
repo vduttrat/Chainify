@@ -20,9 +20,16 @@ export const DashboardCard = ({ title, icon: Icon, children, className = "" }) =
 
 
 
+const statColorMap = {
+    emerald: "bg-emerald-500/10 text-emerald-400",
+    blue: "bg-blue-500/10 text-blue-400",
+    amber: "bg-amber-500/10 text-amber-400",
+    red: "bg-red-500/10 text-red-400",
+}
+
 export const StatCard = ({ label, value, icon: Icon, color = "emerald" }) => (
     <div className="glass-card p-6 rounded-3xl border border-white/5 flex items-center gap-6">
-        <div className={`p-4 rounded-2xl bg-${color}-500/10 text-${color}-400`}>
+        <div className={`p-4 rounded-2xl ${statColorMap[color] || statColorMap.emerald}`}>
             <Icon className="text-2xl" />
         </div>
         <div>
