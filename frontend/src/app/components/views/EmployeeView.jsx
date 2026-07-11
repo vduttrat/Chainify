@@ -5,10 +5,10 @@ import AnomalyInsight from "../AnomalyInsight"
 import { fetchAnomalyAnalysis } from "../../services/anomalyService"
 
 const targetStageMap = {
-  farmer: 0,
-  manufacturer: 1,
-  distributor: 2,
-  retailer: 3
+  farmer: 1,
+  manufacturer: 2,
+  distributor: 3,
+  retailer: 4
 }
 
 export default function EmployeeView({ 
@@ -39,7 +39,7 @@ export default function EmployeeView({
         ? productHistory[productHistory.length - 1].verified 
         : false
 
-    const canVerify = latestStage === targetStage && isPreviousStageApproved
+    const canVerify = latestStage !== null && Number(latestStage) + 1 === targetStage && isPreviousStageApproved
 
     /**
      * Trigger AI analysis when the employee finishes typing a description.

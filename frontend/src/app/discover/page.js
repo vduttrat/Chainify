@@ -414,7 +414,7 @@ export default function DiscoverPage() {
                         
                         {!isConnected ? (
                             <button 
-                                onClick={() => connect({ connector: injected() })}
+                                onClick={() => connect({ connector: injected() }, { onError: (error) => console.error("Wallet connection failed:", error) })}
                                 className="w-full bg-emerald-500 text-black py-6 rounded-2xl font-black text-2xl shadow-[0_0_30px_rgba(16,185,129,0.4)] hover:scale-[1.02] active:scale-95 transition-all mt-4"
                             >
                                 Connect Wallet
